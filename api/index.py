@@ -90,7 +90,7 @@ TETRIS_HTML = """
       </div>
       <div class="btns">
         <button id="restart">Restart (R)</button>
-        <a class="link" href="/calculator">Wage Calculator</a>
+        <a class="link" href="/">Wage Calculator</a>
       </div>
       <div>Controls</div>
       <div>
@@ -387,7 +387,7 @@ CALCULATOR_HTML = """
       </div>
       <div class="actions">
         <button type="submit">Calculate</button>
-        <a href="/">Go to Tetris</a>
+        <a href="/tetris">Go to Tetris</a>
       </div>
     </form>
 
@@ -422,11 +422,12 @@ def _to_float(form_value: str | None, field_name: str, minimum: float) -> float:
     return value
 
 
-@app.route("/")
+@app.route("/tetris")
 def tetris_page():
     return render_template_string(TETRIS_HTML)
 
 
+@app.route("/", methods=["GET", "POST"])
 @app.route("/calculator", methods=["GET", "POST"])
 def calculator_page():
     values = {
