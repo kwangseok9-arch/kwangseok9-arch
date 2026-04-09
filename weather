@@ -1,0 +1,96 @@
+﻿#!/usr/bin/env python3
+"""Simple CLI weather program using Open-Meteo (no API key required)."""
+
+from __future__ import annotations
+
+import json
+import sys
+from urllib.parse import urlencode
+from urllib.request import urlopen
+
+WEATHER_CODES = {
+    0: "맑음",
+    1: "대체로 맑음",
+    2: "부분적으로 흐림",
+    3: "흐림",
+    45: "안개",
+    48: "서리 안개",
+    51: "약한 이슬비",
+    53: "이슬비",
+    55: "강한 이슬비",
+    61: "약한 비",
+    63: "비",
+    65: "강한 비",
+    71: "약한 눈",
+    73: "눈",
+    75: "강한 눈",
+    80: "소나기",
+    81: "강한 소나기",
+    82: "매우 강한 소나기",
+    95: "뇌우",
+}
+
+
+def fetch_json(url: str) -> dict:
+    with urlopen(url, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def geocode_city(city: str) -> tuple[float, float, str]:
+    params = urlencode({"name": city, "count": 1, "language": "ko", "format": "json"})
+    url = f"https://geocoding-api.open-meteo.com/v1/search?{params}"
+    data = fetch_json(url)
+
+    results = data.get("results") or []
+    if not results:
+        raise ValueError("도시를 찾을 수 없습니다.")
+
+    item = results[0]
+    name = item.get("name", city)
+    country = item.get("country", "")
+    label = f"{name}, {country}" if country else name
+    return float(item["latitude"]), float(item["longitude"]), label
+
+
+def current_weather(lat: float, lon: float) -> dict:
+    params = urlencode({
+        "latitude": lat,
+        "longitude": lon,
+        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
+        "timezone": "auto",
+    })
+    url = f"https://api.open-meteo.com/v1/forecast?{params}"
+    data = fetch_json(url)
+    current = data.get("current") or {}
+    if not current:
+        raise ValueError("날씨 데이터를 가져오지 못했습니다.")
+    return current
+
+
+def main() -> None:
+    city = input("도시 이름을 입력하세요 (예: Seoul): ").strip()
+    if not city:
+        print("도시 이름이 필요합니다.")
+        sys.exit(1)
+
+    try:
+        lat, lon, label = geocode_city(city)
+        weather = current_weather(lat, lon)
+
+        code = int(weather.get("weather_code", -1))
+        desc = WEATHER_CODES.get(code, f"알 수 없음(code={code})")
+
+        print("\n=== 현재 날씨 ===")
+        print(f"지역: {label}")
+        print(f"기온: {weather.get('temperature_2m')}°C")
+        print(f"습도: {weather.get('relative_humidity_2m')}%")
+        print(f"풍속: {weather.get('wind_speed_10m')} km/h")
+        print(f"상태: {desc}")
+        print(f"관측시각: {weather.get('time')}")
+    except Exception as exc:
+        print(f"오류: {exc}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
