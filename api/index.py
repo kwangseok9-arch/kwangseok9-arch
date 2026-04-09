@@ -1,5 +1,7 @@
 ﻿from __future__ import annotations
 
+from datetime import date, datetime, timedelta
+
 from flask import Flask, render_template_string, request
 
 from tong_sang_imsugeum_calculator import calculate_wage_breakdown, format_won
@@ -91,6 +93,7 @@ TETRIS_HTML = """
       <div class="btns">
         <button id="restart">Restart (R)</button>
         <a class="link" href="/">Wage Calculator</a>
+        <a class="link" href="/childcare-calculator">Childcare Calculator</a>
       </div>
       <div>Controls</div>
       <div>
@@ -305,7 +308,7 @@ CALCULATOR_HTML = """
       padding: 24px;
     }
     .card {
-      max-width: 680px;
+      max-width: 700px;
       margin: 0 auto;
       background: white;
       border-radius: 14px;
@@ -323,7 +326,7 @@ CALCULATOR_HTML = """
       border-radius: 8px;
       font-size: 14px;
     }
-    .actions { margin-top: 16px; display: flex; gap: 8px; }
+    .actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
     button, a {
       background: #0f766e;
       color: white;
@@ -388,6 +391,7 @@ CALCULATOR_HTML = """
       <div class="actions">
         <button type="submit">Calculate</button>
         <a href="/tetris">Go to Tetris</a>
+        <a href="/childcare-calculator">Childcare Calculator</a>
       </div>
     </form>
 
@@ -411,6 +415,203 @@ CALCULATOR_HTML = """
 </html>
 """
 
+CHILDCARE_HTML = """
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>육아휴직/육아기 근로시간 단축 사용일수 계산기</title>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      margin: 0;
+      padding: 24px;
+    }
+    .card {
+      max-width: 920px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      padding: 24px;
+    }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    p.tip { margin: 0 0 14px; color: #475569; font-size: 14px; }
+    h2 { font-size: 18px; margin: 18px 0 10px; }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    label { font-size: 13px; color: #475569; display: block; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button, a {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      text-decoration: none;
+      color: white;
+      background: #0f766e;
+      cursor: pointer;
+    }
+    a { background: #334155; }
+    .error {
+      margin-top: 14px;
+      color: #b91c1c;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .result {
+      margin-top: 16px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      line-height: 1.9;
+    }
+    .muted { color: #64748b; font-size: 13px; margin-top: 8px; }
+    @media (max-width: 760px) {
+      .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>육아휴직 / 육아기 근로시간 단축 사용일수 계산기</h1>
+    <p class="tip">각 제도별 총 부여일수와 사용기간(시작~종료)을 입력하면 사용일수와 잔여일수를 계산합니다. 시작일과 종료일을 모두 포함해 계산합니다.</p>
+
+    <form method="post">
+      <h2>1) 육아휴직</h2>
+      <div class="row">
+        <div>
+          <label for="leave_total_days">총 부여일수(일)</label>
+          <input id="leave_total_days" name="leave_total_days" type="number" min="0" step="1" value="{{ values.leave_total_days }}" required />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="leave_1_start">기간1 시작일</label>
+          <input id="leave_1_start" name="leave_1_start" type="date" value="{{ values.leave_1_start }}" />
+        </div>
+        <div>
+          <label for="leave_1_end">기간1 종료일</label>
+          <input id="leave_1_end" name="leave_1_end" type="date" value="{{ values.leave_1_end }}" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="leave_2_start">기간2 시작일</label>
+          <input id="leave_2_start" name="leave_2_start" type="date" value="{{ values.leave_2_start }}" />
+        </div>
+        <div>
+          <label for="leave_2_end">기간2 종료일</label>
+          <input id="leave_2_end" name="leave_2_end" type="date" value="{{ values.leave_2_end }}" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="leave_3_start">기간3 시작일</label>
+          <input id="leave_3_start" name="leave_3_start" type="date" value="{{ values.leave_3_start }}" />
+        </div>
+        <div>
+          <label for="leave_3_end">기간3 종료일</label>
+          <input id="leave_3_end" name="leave_3_end" type="date" value="{{ values.leave_3_end }}" />
+        </div>
+      </div>
+
+      <h2>2) 육아기 근로시간 단축</h2>
+      <div class="row">
+        <div>
+          <label for="short_total_days">총 부여일수(일)</label>
+          <input id="short_total_days" name="short_total_days" type="number" min="0" step="1" value="{{ values.short_total_days }}" required />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="short_1_start">기간1 시작일</label>
+          <input id="short_1_start" name="short_1_start" type="date" value="{{ values.short_1_start }}" />
+        </div>
+        <div>
+          <label for="short_1_end">기간1 종료일</label>
+          <input id="short_1_end" name="short_1_end" type="date" value="{{ values.short_1_end }}" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="short_2_start">기간2 시작일</label>
+          <input id="short_2_start" name="short_2_start" type="date" value="{{ values.short_2_start }}" />
+        </div>
+        <div>
+          <label for="short_2_end">기간2 종료일</label>
+          <input id="short_2_end" name="short_2_end" type="date" value="{{ values.short_2_end }}" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="short_3_start">기간3 시작일</label>
+          <input id="short_3_start" name="short_3_start" type="date" value="{{ values.short_3_start }}" />
+        </div>
+        <div>
+          <label for="short_3_end">기간3 종료일</label>
+          <input id="short_3_end" name="short_3_end" type="date" value="{{ values.short_3_end }}" />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit">계산하기</button>
+        <a href="/">임금 계산기</a>
+        <a href="/tetris">테트리스</a>
+      </div>
+    </form>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+      <div class="result">
+        [육아휴직] 사용일수: <strong>{{ result.leave_used }}</strong>일 /
+        잔여일수: <strong>{{ result.leave_remaining }}</strong>일
+        {% if result.leave_exceeded > 0 %}
+          (초과 {{ result.leave_exceeded }}일)
+        {% endif %}
+        <br />
+        [육아기 근로시간 단축] 사용일수: <strong>{{ result.short_used }}</strong>일 /
+        잔여일수: <strong>{{ result.short_remaining }}</strong>일
+        {% if result.short_exceeded > 0 %}
+          (초과 {{ result.short_exceeded }}일)
+        {% endif %}
+        <br />
+        [합계] 사용일수: <strong>{{ result.total_used }}</strong>일 /
+        잔여일수: <strong>{{ result.total_remaining }}</strong>일
+      </div>
+      <div class="muted">안내: 이 계산기는 입력한 총 부여일수 기준으로 산술 계산한 참고값입니다.</div>
+    {% endif %}
+  </div>
+</body>
+</html>
+"""
+
 
 def _to_float(form_value: str | None, field_name: str, minimum: float) -> float:
     if form_value is None or form_value == "":
@@ -420,6 +621,59 @@ def _to_float(form_value: str | None, field_name: str, minimum: float) -> float:
     if value < minimum:
         raise ValueError(f"{field_name} must be at least {minimum}.")
     return value
+
+
+def _to_int(form_value: str | None, field_name: str, minimum: int) -> int:
+    if form_value is None or form_value == "":
+        raise ValueError(f"{field_name} 값을 입력해주세요.")
+    value = int(form_value)
+    if value < minimum:
+        raise ValueError(f"{field_name} 값은 {minimum} 이상이어야 합니다.")
+    return value
+
+
+def _parse_date(value: str, field_name: str) -> date:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError(f"{field_name} 날짜 형식이 올바르지 않습니다.") from exc
+
+
+def _extract_periods(values: dict[str, str], prefix: str, title: str) -> list[tuple[date, date]]:
+    periods: list[tuple[date, date]] = []
+    for idx in range(1, 4):
+        start_raw = values.get(f"{prefix}_{idx}_start", "").strip()
+        end_raw = values.get(f"{prefix}_{idx}_end", "").strip()
+
+        if not start_raw and not end_raw:
+            continue
+        if not start_raw or not end_raw:
+            raise ValueError(f"{title} 기간{idx}의 시작일/종료일을 모두 입력해주세요.")
+
+        start_date = _parse_date(start_raw, f"{title} 기간{idx} 시작일")
+        end_date = _parse_date(end_raw, f"{title} 기간{idx} 종료일")
+        if end_date < start_date:
+            raise ValueError(f"{title} 기간{idx} 종료일은 시작일보다 빠를 수 없습니다.")
+
+        periods.append((start_date, end_date))
+    return periods
+
+
+def _count_unique_days(periods: list[tuple[date, date]]) -> int:
+    if not periods:
+        return 0
+
+    sorted_periods = sorted(periods, key=lambda item: item[0])
+    merged: list[list[date]] = [[sorted_periods[0][0], sorted_periods[0][1]]]
+
+    for start_date, end_date in sorted_periods[1:]:
+        _, last_end = merged[-1]
+        if start_date <= last_end + timedelta(days=1):
+            merged[-1][1] = max(last_end, end_date)
+        else:
+            merged.append([start_date, end_date])
+
+    return sum((end_date - start_date).days + 1 for start_date, end_date in merged)
 
 
 @app.route("/tetris")
@@ -464,6 +718,60 @@ def calculator_page():
             error = "Please check your input. Salary/days/hours must be >= 1."
 
     return render_template_string(CALCULATOR_HTML, values=values, error=error, result=result)
+
+
+@app.route("/childcare-calculator", methods=["GET", "POST"])
+def childcare_calculator_page():
+    values = {
+        "leave_total_days": "0",
+        "leave_1_start": "",
+        "leave_1_end": "",
+        "leave_2_start": "",
+        "leave_2_end": "",
+        "leave_3_start": "",
+        "leave_3_end": "",
+        "short_total_days": "0",
+        "short_1_start": "",
+        "short_1_end": "",
+        "short_2_start": "",
+        "short_2_end": "",
+        "short_3_start": "",
+        "short_3_end": "",
+    }
+    error = ""
+    result = None
+
+    if request.method == "POST":
+        values.update({key: request.form.get(key, "") for key in values.keys()})
+        try:
+            leave_total_days = _to_int(values["leave_total_days"], "육아휴직 총 부여일수", 0)
+            short_total_days = _to_int(values["short_total_days"], "육아기 근로시간 단축 총 부여일수", 0)
+
+            leave_periods = _extract_periods(values, "leave", "육아휴직")
+            short_periods = _extract_periods(values, "short", "육아기 근로시간 단축")
+
+            leave_used = _count_unique_days(leave_periods)
+            short_used = _count_unique_days(short_periods)
+
+            leave_remaining = max(leave_total_days - leave_used, 0)
+            short_remaining = max(short_total_days - short_used, 0)
+            leave_exceeded = max(leave_used - leave_total_days, 0)
+            short_exceeded = max(short_used - short_total_days, 0)
+
+            result = {
+                "leave_used": leave_used,
+                "leave_remaining": leave_remaining,
+                "leave_exceeded": leave_exceeded,
+                "short_used": short_used,
+                "short_remaining": short_remaining,
+                "short_exceeded": short_exceeded,
+                "total_used": leave_used + short_used,
+                "total_remaining": leave_remaining + short_remaining,
+            }
+        except Exception as exc:
+            error = str(exc)
+
+    return render_template_string(CHILDCARE_HTML, values=values, error=error, result=result)
 
 
 if __name__ == "__main__":
